@@ -17,9 +17,9 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # Base URL for DeepSeek API
 # Text Processing Settings
 MAX_CHUNK_SIZE = 10000  # Maximum characters per chunk
 TWEETS_PER_CHUNK = 3   # Number of tweets to generate per chunk
-USE_TEXT_FILE = True   # Whether to use og_tweet_text.txt by default
-# if the above is true, then the below is the file to use
-OG_TWEET_FILE = "/Users/md/Dropbox/dev/github/moon-dev-ai-agents-for-trading/src/data/tweets/og_tweet_text.txt"
+USE_TEXT_FILE = False   # Whether to use og_tweet_text.txt by default (set to False for standalone testing)
+# if the above is true, then the below is the file to use (relative to project root)
+# OG_TWEET_FILE will be constructed at runtime to avoid hardcoded paths
 
 import os
 import pandas as pd
@@ -155,8 +155,8 @@ class TweetAgent:
             print(f"⚠️ Error initializing Twitter client: {str(e)}")
             self.twitter_client = None
         
-        # Create tweets directory if it doesn't exist
-        self.tweets_dir = Path("/Users/md/Dropbox/dev/github/moon-dev-ai-agents-for-trading/src/data/tweets")
+        # Create tweets directory if it doesn't exist (relative to project root)
+        self.tweets_dir = PROJECT_ROOT / "src" / "data" / "tweets"
         self.tweets_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate output filename with timestamp
@@ -172,7 +172,9 @@ class TweetAgent:
         """Get input text from either file or direct input"""
         if USE_TEXT_FILE:
             try:
-                with open(OG_TWEET_FILE, 'r') as f:
+                # Construct path relative to project root
+                og_tweet_file = PROJECT_ROOT / "src" / "data" / "tweets" / "og_tweet_text.txt"
+                with open(og_tweet_file, 'r') as f:
                     return f.read()
             except Exception as e:
                 print(f"❌ Error reading text file: {str(e)}")
