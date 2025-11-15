@@ -17,9 +17,9 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # Base URL for DeepSeek API
 # Text Processing Settings
 MAX_CHUNK_SIZE = 10000  # Maximum characters per chunk
 TWEETS_PER_CHUNK = 3   # Number of tweets to generate per chunk
-USE_TEXT_FILE = True   # Whether to use og_tweet_text.txt by default
-# if the above is true, then the below is the file to use
-OG_TWEET_FILE = "/Users/md/Dropbox/dev/github/moon-dev-ai-agents-for-trading/src/data/tweets/og_tweet_text.txt"
+USE_TEXT_FILE = False   # Whether to use og_tweet_text.txt by default (set to False for standalone testing)
+# if the above is true, then the below is the file to use (relative to project root)
+# OG_TWEET_FILE will be constructed at runtime to avoid hardcoded paths
 
 import os
 import pandas as pd
@@ -55,14 +55,19 @@ Text to analyze:
 {text}
 
 Manifest:
-- Keep it casual and concise
-- Focus on key insights and facts
-- no emojis
-- always be kind
-- No hashtags unless absolutely necessary
-- Maximum 280 characters per tweet
-- no capitalization
-- don't number the tweets
+- casual, conversational tone with technical depth
+- lowercase writing style (no capitalization except for acronyms like AI, API, USD)
+- use emojis strategically (🚀 🌙 💰 🤖 ⚡ 🎯) but not excessively
+- focus on ai agents, trading, crypto, and futurism
+- include tech jargon but explain complex concepts simply
+- short declarative sentences that pack insights
+- emphasize experimental/educational nature of ideas
+- always be kind and supportive to the community
+- use "we" and "you" to be inclusive
+- mention discord community engagement when relevant
+- no numbered lists in tweets
+- hashtags only when natural (lowercase: #ai #trading #crypto)
+- maximum 280 characters per tweet
 - separate tweets with blank lines
 
 EACH TWEET MUST BE A COMPLETE TAKE AND BE INTERESTING
@@ -123,8 +128,35 @@ class TweetAgent:
         else:
             self.deepseek_client = None
         
-        # Create tweets directory if it doesn't exist
-        self.tweets_dir = Path("/Users/md/Dropbox/dev/github/moon-dev-ai-agents-for-trading/src/data/tweets")
+        # Initialize Twitter API client (optional - only if credentials are provided)
+        self.twitter_client = None
+        try:
+            twitter_api_key = os.getenv("TWITTER_API_KEY") or config.TWITTER_API_KEY
+            twitter_api_secret = os.getenv("TWITTER_API_SECRET") or config.TWITTER_API_SECRET
+            twitter_access_token = os.getenv("TWITTER_ACCESS_TOKEN") or config.TWITTER_ACCESS_TOKEN
+            twitter_access_token_secret = os.getenv("TWITTER_ACCESS_TOKEN_SECRET") or config.TWITTER_ACCESS_TOKEN_SECRET
+            
+            if twitter_api_key and twitter_api_secret and twitter_access_token and twitter_access_token_secret:
+                import tweepy
+                # Twitter API v2 authentication
+                self.twitter_client = tweepy.Client(
+                    consumer_key=twitter_api_key,
+                    consumer_secret=twitter_api_secret,
+                    access_token=twitter_access_token,
+                    access_token_secret=twitter_access_token_secret
+                )
+                print("✅ Twitter API client initialized successfully")
+            else:
+                print("ℹ️ Twitter API credentials not found - tweets will only be saved to file")
+        except ImportError:
+            print("⚠️ tweepy not installed - run: pip install tweepy")
+            self.twitter_client = None
+        except Exception as e:
+            print(f"⚠️ Error initializing Twitter client: {str(e)}")
+            self.twitter_client = None
+        
+        # Create tweets directory if it doesn't exist (relative to project root)
+        self.tweets_dir = PROJECT_ROOT / "src" / "data" / "tweets"
         self.tweets_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate output filename with timestamp
@@ -140,7 +172,9 @@ class TweetAgent:
         """Get input text from either file or direct input"""
         if USE_TEXT_FILE:
             try:
-                with open(OG_TWEET_FILE, 'r') as f:
+                # Construct path relative to project root
+                og_tweet_file = PROJECT_ROOT / "src" / "data" / "tweets" / "og_tweet_text.txt"
+                with open(og_tweet_file, 'r') as f:
                     return f.read()
             except Exception as e:
                 print(f"❌ Error reading text file: {str(e)}")
@@ -253,17 +287,108 @@ class TweetAgent:
             print(f"❌ Error generating tweets: {str(e)}")
             traceback.print_exc()
             return None
+    
+    def post_tweet(self, tweet_text):
+        """
+        Post a tweet to Twitter using the API
+        
+        Args:
+            tweet_text (str): The text content to tweet (max 280 characters)
+            
+        Returns:
+            bool: True if posted successfully, False otherwise
+        """
+        if not self.twitter_client:
+            print("⚠️ Twitter client not initialized - skipping posting")
+            return False
+        
+        try:
+            # Validate tweet length
+            if len(tweet_text) > 280:
+                print(f"⚠️ Tweet too long ({len(tweet_text)} chars), truncating to 280...")
+                tweet_text = tweet_text[:277] + "..."
+            
+            # Post the tweet
+            response = self.twitter_client.create_tweet(text=tweet_text)
+            
+            if response and response.data:
+                tweet_id = response.data.get('id', 'unknown')
+                print(f"✅ Tweet posted successfully! ID: {tweet_id}")
+                return True
+            else:
+                print("⚠️ Tweet posted but no response data received")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error posting tweet: {str(e)}")
+            # Don't crash the agent, just log the error and continue
+            return False
 
 if __name__ == "__main__":
-    agent = TweetAgent()
-    
-    # Example usage with direct text
-    test_text = """Bitcoin showing strong momentum with increasing volume. 
-    Price action suggests accumulation phase might be complete. 
-    Key resistance at $69,000 with support holding at $65,000."""
-    
-    # If USE_TEXT_FILE is True, it will use the file instead of test_text
-    tweets = agent.generate_tweets(test_text)
-    
-    if tweets:
-        print(f"\nTweets have been saved to: {agent.output_file}")
+    try:
+        agent = TweetAgent()
+        
+        # Example usage with direct text
+        test_text = """Bitcoin showing strong momentum with increasing volume. 
+        Price action suggests accumulation phase might be complete. 
+        Key resistance at $69,000 with support holding at $65,000."""
+        
+        print(f"\n🌙 Moon Dev's Tweet Agent starting (interval: {config.TWEET_INTERVAL_SECONDS}s)...")
+        
+        while True:
+            try:
+                print(f"\n{'='*60}")
+                print(f"🔄 Starting new tweet generation cycle at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"{'='*60}")
+                
+                # If USE_TEXT_FILE is True, it will use the file instead of test_text
+                tweets = agent.generate_tweets(test_text)
+                
+                if tweets:
+                    print(f"\n✅ Generated {len(tweets)} tweets successfully")
+                    print(f"📁 Tweets saved to: {agent.output_file}")
+                    
+                    # Post tweets to Twitter if client is initialized
+                    if agent.twitter_client:
+                        print(f"\n🐦 Posting {len(tweets)} tweets to Twitter...")
+                        posted_count = 0
+                        
+                        for idx, tweet in enumerate(tweets, 1):
+                            print(f"\n📤 Posting tweet {idx}/{len(tweets)}:")
+                            print(f"   {tweet[:100]}{'...' if len(tweet) > 100 else ''}")
+                            
+                            success = agent.post_tweet(tweet)
+                            if success:
+                                posted_count += 1
+                            
+                            # Delay between posts to avoid rate limits
+                            if idx < len(tweets):
+                                time.sleep(config.TWEET_POST_DELAY_SECONDS)
+                        
+                        print(f"\n✅ Posted {posted_count}/{len(tweets)} tweets successfully")
+                    else:
+                        print("\nℹ️ Twitter posting disabled (no API credentials)")
+                
+                # Calculate next run time
+                next_run = datetime.now() + pd.Timedelta(seconds=config.TWEET_INTERVAL_SECONDS)
+                print(f"\n😴 Generation complete. Sleeping for {config.TWEET_INTERVAL_SECONDS} seconds...")
+                print(f"⏰ Next run at: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"{'='*60}\n")
+                
+                time.sleep(config.TWEET_INTERVAL_SECONDS)
+                
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                print(f"\n❌ Error in tweet generation cycle: {str(e)}")
+                traceback.print_exc()
+                print(f"\n⏳ Waiting 60 seconds before retrying...")
+                time.sleep(60)  # Wait before retrying on error
+                
+    except KeyboardInterrupt:
+        print("\n\n👋 Moon Dev's Tweet Agent shutting down gracefully...")
+        print("🌙 Thanks for using the Tweet Agent! 🚀")
+    except Exception as e:
+        print(f"\n❌ Fatal error: {str(e)}")
+        traceback.print_exc()
+        sys.exit(1)

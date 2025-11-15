@@ -133,3 +133,15 @@ EXIT_ALL_POSITIONS = False
 DO_NOT_TRADE_LIST = ['777']
 CLOSED_POSITIONS_TXT = '777'
 minimum_trades_in_last_hour = 777
+
+# Tweet Agent Settings 🐦
+TWEET_INTERVAL_SECONDS = 900  # 15 minutes (900 seconds) between tweet generation cycles
+TWEET_POST_DELAY_SECONDS = 10  # Delay between posting individual tweets to avoid rate limits
+
+# Twitter API Credentials (v2 API with tweepy)
+# Get these from https://developer.twitter.com/en/portal/dashboard
+TWITTER_API_KEY = ""  # Your Twitter API Key
+TWITTER_API_SECRET = ""  # Your Twitter API Secret
+TWITTER_ACCESS_TOKEN = ""  # Your Twitter Access Token
+TWITTER_ACCESS_TOKEN_SECRET = ""  # Your Twitter Access Token Secret
+TWITTER_BEARER_TOKEN = ""  # Your Twitter Bearer Token (optional, for read-only operations)
